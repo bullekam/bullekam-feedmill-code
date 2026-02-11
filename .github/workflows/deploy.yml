@@ -1,4 +1,4 @@
-name: Build and Deploy to ECS (Fargate)
+name: Build Image and Trigger Infra Deploy
 
 on:
   push:
@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build_push_and_plan:
+  build_and_push:
     runs-on: ubuntu-latest
 
     env:
@@ -17,12 +17,8 @@ jobs:
       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
       IMAGE_TAG: ${{ github.sha }}
 
-    outputs:
-      image_tag: ${{ env.IMAGE_TAG }}
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Configure AWS credentials (OIDC)
         uses: aws-actions/configure-aws-credentials@v4
@@ -41,55 +37,15 @@ jobs:
           docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
           docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
 
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.7.5"
-
-      - name: Terraform Init
-        working-directory: infra
-        run: terraform init
-
-      - name: Terraform Plan
-        working-directory: infra
+      - name: Trigger Terraform repo deploy (prod)
+        env:
+          GH_TOKEN: ${{ secrets.TF_REPO_PAT }}
+          TF_OWNER: bullekam
+          TF_REPO: bullekam-feedmill-tf
+          IMAGE_TAG: ${{ github.sha }}
         run: |
-          terraform plan \
-            -var="region=${AWS_REGION}" \
-            -var="image_tag=${IMAGE_TAG}"
-
-  apply:
-    needs: build_push_and_plan
-    runs-on: ubuntu-latest
-
-    # THIS is what triggers the manual approval gate
-    environment: prod
-
-    env:
-      AWS_REGION: ${{ vars.AWS_REGION }}
-      IMAGE_TAG: ${{ github.sha }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials (OIDC)
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: "1.7.5"
-
-      - name: Terraform Init
-        working-directory: infra
-        run: terraform init
-
-      - name: Terraform Apply (requires approval)
-        working-directory: infra
-        run: |
-          terraform apply -auto-approve \
-            -var="region=${AWS_REGION}" \
-            -var="image_tag=${IMAGE_TAG}"
+          curl -sS -X POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            https://api.github.com/repos/$TF_OWNER/$TF_REPO/dispatches \
+            -d "{\"event_type\":\"deploy-prod\",\"client_payload\":{\"image_tag\":\"$IMAGE_TAG\"}}"
