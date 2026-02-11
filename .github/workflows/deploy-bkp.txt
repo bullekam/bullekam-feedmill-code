@@ -2,7 +2,7 @@ name: Build Image and Trigger Infra Deploy
 
 on:
   push:
-    branches: ["dev", "main"]
+    branches: ["main"]
 
 permissions:
   id-token: write
@@ -30,7 +30,7 @@ jobs:
         id: ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image (latest)
+      - name: Build, tag, and push image
         env:
           ECR_REGISTRY: ${{ steps.ecr.outputs.registry }}
         run: |
@@ -41,15 +41,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TF_REPO_PAT }}
           DEPLOY_ID: ${{ github.sha }}
+          ENVIRONMENT: dev   # or prod
         run: |
-          if [ "${GITHUB_REF_NAME}" = "main" ]; then
-            ENVIRONMENT="prod"
-          else
-            ENVIRONMENT="dev"
-          fi
-
           curl -sS -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $GH_TOKEN" \
             https://api.github.com/repos/bullekam/bullekam-feedmill-tf/dispatches \
             -d "{\"event_type\":\"deploy-image\",\"client_payload\":{\"environment\":\"$ENVIRONMENT\",\"deploy_id\":\"$DEPLOY_ID\"}}"
+
