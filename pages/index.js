@@ -4,6 +4,7 @@ export default function Home() {
       <h1>Hello World 👋</h1>
       <p>Next.js running on ECS Fargate updated.</p>
       <p>Destiny is the most beautiful girl in the world.</p>
+      <p>This is a demo.</p>
     </main>
   );
 }
