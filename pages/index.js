@@ -3,7 +3,7 @@ export default function Home() {
     <main style={{ fontFamily: "Arial, sans-serif", padding: 40 }}>
       <h1>Hello World 👋</h1>
       <p>Next.js running on ECS Fargate updated.</p>
-      <p>This is a demo.</p>
+      <p>This is a demo. Update.</p>
     </main>
   );
 }
